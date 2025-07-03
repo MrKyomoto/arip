@@ -16,7 +16,8 @@ enum FileType {
 #[derive(Debug)]
 struct AppState{
     current_dir: PathBuf,    
-    current_files: Vec<(String,FileType)>
+    current_files: Vec<(String,FileType)>,
+    popup: Option<String>,
 }
 
 impl Default for AppState {
@@ -26,6 +27,7 @@ impl Default for AppState {
         AppState { 
             current_dir, 
             current_files,
+            popup: None,
         }
     } 
 }
@@ -36,6 +38,7 @@ enum Message{
     Exit,
     CD(PathBuf),
     ARIP(PathBuf),
+    ClosePopup,
 }
 
 // Task是从update中返回的一个任务,而后就会执行这个任务
@@ -62,15 +65,19 @@ fn update(state: &mut AppState, message: Message) -> Task<Message>{
                     .status()
                 {
                     if output.success(){
-
+                        state.popup = Some(String::from("Audio Has Been Ripped"));
                     }
                     else{
-
+                        state.popup = Some(String::from("Error Ripped"))
                     }
                 }
             }
             Task::none()
         },
+        Message::ClosePopup => {
+            state.popup = None;
+            Task::none()
+        }
     }
 }
 
@@ -85,6 +92,14 @@ fn view(state: &AppState) -> Element<'_,Message>{
     ].spacing(8),
     
     ].spacing(2).padding(4);
+
+    context = context.push(horizontal_rule(2));
+
+    if let Some(pat) = &state.popup{
+         context = context.push(
+            row![text(pat).width(Fill),button("close").on_press(Message::ClosePopup)]
+         );
+    }
 
     context = context.push(horizontal_rule(2));
 
