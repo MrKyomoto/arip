@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 use iced::Length::Fill;
 use iced::{window, Border, Shadow, Task};
@@ -34,6 +35,7 @@ impl Default for AppState {
 enum Message{
     Exit,
     CD(PathBuf),
+    ARIP(PathBuf),
 }
 
 // Task是从update中返回的一个任务,而后就会执行这个任务
@@ -44,7 +46,31 @@ fn update(state: &mut AppState, message: Message) -> Task<Message>{
             state.current_dir = path_buf;
             state.current_files = get_files(&state.current_dir);
             Task::none()
-        }
+        },
+        Message::ARIP(path_buf) => {
+            if let Some(parent) = path_buf.parent(){
+                let mut new_file = parent.to_path_buf();
+                new_file.push("output.mp3");
+
+                if let Ok(output) = Command::new("ffmpeg")
+                    .args([
+                        "-i",
+                        path_buf.to_str().unwrap_or("/home"),
+                        "-y",
+                        new_file.to_str().unwrap_or("/home"),
+                    ])
+                    .status()
+                {
+                    if output.success(){
+
+                    }
+                    else{
+
+                    }
+                }
+            }
+            Task::none()
+        },
     }
 }
 
@@ -54,7 +80,7 @@ fn view(state: &AppState) -> Element<'_,Message>{
 
     let mut context = column![row![
         text(cwd).size(32).width(Fill),
-        button(text("Up").size(24)).on_press(Message::CD(state.current_dir.parent().unwrap_or(&state.current_dir).to_path_buf())),
+        // button(text("Up").size(24)).on_press(Message::CD(state.current_dir.parent().unwrap_or(&state.current_dir).to_path_buf())),
         button(text("Exit").size(24)).on_press(Message::Exit),
     ].spacing(8),
     
@@ -68,18 +94,22 @@ fn view(state: &AppState) -> Element<'_,Message>{
 
     for file in &state.current_files{
         let file_name = text(&file.0).size(18);
+
+        let mut file_path = state.current_dir.clone();
+        file_path.push(&file.0);
+
         match &file.1 {
             // 这里还是有点说法的,context.push会返回一个新的实例,这是因为context在iced里被认为是不可改变的东西,所以要重新赋值
             FileType::DIR => {
-                let mut file_path = state.current_dir.clone();
-                file_path.push(&file.0);
                 context = context.push(
                 button(file_name)
                     .style(dir_button_style())
                     .on_press(Message::CD(file_path)),
             );
             },
-            FileType::FILE => context = context.push(file_name),
+            FileType::FILE => {
+               context = context.push(row![file_name.width(Fill),button(text("Arip")).on_press(Message::ARIP(file_path))]);
+            },
         };
         
     }
@@ -115,7 +145,10 @@ fn get_files(path: &PathBuf) -> Vec<(String,FileType)>{
                     if meta.is_dir(){
                         dirs.push((file.file_name().to_str().unwrap_or("unknown dir").to_string(),FileType::DIR));
                     }else{
-                        files.push((file.file_name().to_str().unwrap_or("unknown file").to_string(),FileType::FILE));
+                        // Due to the aim of the App is to get audio from video, only mkv files can be displayed
+                        if file.file_name().to_str().unwrap_or_default().ends_with("mkv"){
+                            files.push((file.file_name().to_str().unwrap_or("unknown file").to_string(),FileType::FILE));
+                        }
                     }
                 }
             }
